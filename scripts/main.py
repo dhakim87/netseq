@@ -554,78 +554,78 @@ raw_input("HELLO!  Finished wiping edges for test purposes!")
 #END TEST TEST TEST
 
 
-for nodeID in ["69", "73", "86", "90", "95", "105", "110", "113"]:
-    theoreticalSpectra = parseMGF.genTheoreticalMasses(SG.nodes[nodeID].CORRECT_ANSWER.massList)
-    print("\nNODE: " + str(SG.nodes[nodeID]))
-    peaksAccountedFor = 0
-    peaksNotAccountedFor = 0
-    for mass in SG.nodes[nodeID].allSpectra[0][1]:
-        accountedFor = False
-        for otherMass in theoreticalSpectra:
-            if abs(mass - otherMass) < .02:
-                accountedFor = True
-                break
-        if accountedFor:
-            peaksAccountedFor += 1
-        else:
-            peaksNotAccountedFor += 1
-
-    print("Peaks Accounted For: " + str(peaksAccountedFor))
-    print("Peaks Not Accounted For: " + str(peaksNotAccountedFor))
-    print("Total Peaks: " + str(peaksAccountedFor + peaksNotAccountedFor))
-
-    
-    spectralPlotting.lineSpectrumMatch(
-        SG.nodes[nodeID].allSpectra[0][0]["PEPMASS"],
-        SG.nodes[nodeID].allSpectra[0][1],
-        theoreticalSpectra
-    )
+#for nodeID in ["69", "73", "86", "90", "95", "105", "110", "113"]:
+#    theoreticalSpectra = parseMGF.genTheoreticalMasses(SG.nodes[nodeID].CORRECT_ANSWER.massList)
+#    print("\nNODE: " + str(SG.nodes[nodeID]))
+#    peaksAccountedFor = 0
+#    peaksNotAccountedFor = 0
+#    for mass in SG.nodes[nodeID].allSpectra[0][1]:
+#        accountedFor = False
+#        for otherMass in theoreticalSpectra:
+#            if abs(mass - otherMass) < .02:
+#                accountedFor = True
+#                break
+#        if accountedFor:
+#            peaksAccountedFor += 1
+#        else:
+#            peaksNotAccountedFor += 1
+#
+#    print("Peaks Accounted For: " + str(peaksAccountedFor))
+#    print("Peaks Not Accounted For: " + str(peaksNotAccountedFor))
+#    print("Total Peaks: " + str(peaksAccountedFor + peaksNotAccountedFor))
+#
+#
+#    spectralPlotting.lineSpectrumMatch(
+#        SG.nodes[nodeID].allSpectra[0][0]["PEPMASS"],
+#        SG.nodes[nodeID].allSpectra[0][1],
+#        theoreticalSpectra
+#    )
 
 raw_input("Finished Plotting Theoretical Vs Experimental Spectra")
 
-maximumExperimentalPairwiseScore = 0
-maximumTheoreticalPairwiseScore = 0
-for nodeID in ["69", "73", "86", "90", "95", "105", "110", "113"]:
-    node = SG.nodes[nodeID]
-    for neighbor in SG.nodes[nodeID].neighbors:
-        if node.mass > neighbor.mass:
-            continue
-        nodeExperimentalSpectraList = list(parseMGF.findMasses(x[1]) for x in node.allSpectra)
-        neighborExperimentalSpectraList = list(parseMGF.findMasses(x[1]) for x in neighbor.allSpectra)
-        massDeltas = spectralPlotting.computeDeltaMassDicts(nodeExperimentalSpectraList, neighborExperimentalSpectraList)
-
-        candidateA = node.CORRECT_ANSWER
-        candidateB = neighbor.CORRECT_ANSWER
-        candidateA.theoreticalSpectra = parseMGF.genTheoreticalMasses(candidateA.massList)
-        candidateB.theoreticalSpectra = parseMGF.genTheoreticalMasses(candidateB.massList)
-
-        #Remember that we are creating B-A, must be consistent for node and candidate.
-        candidateDeltas = spectralPlotting.computeDeltaMassDict(candidateA.theoreticalSpectra, candidateB.theoreticalSpectra)
-
-        experimentalTotal = 0
-        for key in massDeltas[0]:
-            count = massDeltas[0][key]
-            if abs(key - (neighbor.mass - node.mass)) < .02:
-                print("Experimental: " + str(key) + " Count: " + str(count))
-                experimentalTotal += count
-        maximumExperimentalPairwiseScore += experimentalTotal
-
-        theoreticalTotal = 0
-        for key in candidateDeltas:
-            count = candidateDeltas[key]
-            if abs(key - (neighbor.mass - node.mass)) < .02:
-                print("Theoretical:  " + str(key) + " Count: " + str(count))
-                theoreticalTotal += count
-        maximumTheoreticalPairwiseScore += theoreticalTotal
-
-        print("Node: " + str(node) + " Neighbor: " + str(neighbor))
-        print("Exp Total: " + str(experimentalTotal) + " Theoretical Total: " + str(theoreticalTotal))
-
-        cyclicLDist = str(L.computeCyclicEditDist(node.CORRECT_ANSWER, neighbor.CORRECT_ANSWER))
-        spectralPlotting.scatterSpectras(node.CORRECT_ANSWER.genSimpleName() + ":" + str(node.mass) + " - " + neighbor.CORRECT_ANSWER.genSimpleName() + ":" + str(neighbor.mass) + "(" + cyclicLDist + ")" + " n*m=" + str(len(massDeltas)), massDeltas, str(neighbor.mass - node.mass), candidateDeltas)
-
-print("Maximum experimental pairwise score: " + str(maximumExperimentalPairwiseScore))
-print("Maximum theoretical pairwise score: " + str(maximumTheoreticalPairwiseScore))
+#maximumExperimentalPairwiseScore = 0
+#maximumTheoreticalPairwiseScore = 0
+#for nodeID in ["69", "73", "86", "90", "95", "105", "110", "113"]:
+#    node = SG.nodes[nodeID]
+#    for neighbor in SG.nodes[nodeID].neighbors:
+#        if node.mass > neighbor.mass:
+#            continue
+#        nodeExperimentalSpectraList = list(parseMGF.findMasses(x[1]) for x in node.allSpectra)
+#        neighborExperimentalSpectraList = list(parseMGF.findMasses(x[1]) for x in neighbor.allSpectra)
+#        massDeltas = spectralPlotting.computeDeltaMassDicts(nodeExperimentalSpectraList, neighborExperimentalSpectraList)
+#
+#        candidateA = node.CORRECT_ANSWER
+#        candidateB = neighbor.CORRECT_ANSWER
+#        candidateA.theoreticalSpectra = parseMGF.genTheoreticalMasses(candidateA.massList)
+#        candidateB.theoreticalSpectra = parseMGF.genTheoreticalMasses(candidateB.massList)
+#
+#        #Remember that we are creating B-A, must be consistent for node and candidate.
+#        candidateDeltas = spectralPlotting.computeDeltaMassDict(candidateA.theoreticalSpectra, candidateB.theoreticalSpectra)
+#
+#        experimentalTotal = 0
+#        for key in massDeltas[0]:
+#            count = massDeltas[0][key]
+#            if abs(key - (neighbor.mass - node.mass)) < .02:
+#                print("Experimental: " + str(key) + " Count: " + str(count))
+#                experimentalTotal += count
+#        maximumExperimentalPairwiseScore += experimentalTotal
+#
+#        theoreticalTotal = 0
+#        for key in candidateDeltas:
+#            count = candidateDeltas[key]
+#            if abs(key - (neighbor.mass - node.mass)) < .02:
+#                print("Theoretical:  " + str(key) + " Count: " + str(count))
+#                theoreticalTotal += count
+#        maximumTheoreticalPairwiseScore += theoreticalTotal
+#
+#        print("Node: " + str(node) + " Neighbor: " + str(neighbor))
+#        print("Exp Total: " + str(experimentalTotal) + " Theoretical Total: " + str(theoreticalTotal))
+#
+#        cyclicLDist = str(L.computeCyclicEditDist(node.CORRECT_ANSWER, neighbor.CORRECT_ANSWER))
+#        spectralPlotting.scatterSpectras(node.CORRECT_ANSWER.genSimpleName() + ":" + str(node.mass) + " - " + neighbor.CORRECT_ANSWER.genSimpleName() + ":" + str(neighbor.mass) + "(" + cyclicLDist + ")" + " n*m=" + str(len(massDeltas)), massDeltas, str(neighbor.mass - node.mass), candidateDeltas)
+#
+#print("Maximum experimental pairwise score: " + str(maximumExperimentalPairwiseScore))
+#print("Maximum theoretical pairwise score: " + str(maximumTheoreticalPairwiseScore))
 
 raw_input("Finished plotting pairwise diffs")
 
@@ -871,7 +871,7 @@ def pairwiseScoreMultiAnnotation(S1, S2, T1, T2, deltaMass, eps):
             for t1 in tPairs:
                 for t2 in tPairs[t1]:
                     if fuzzyEqual(t1, s1, eps) and fuzzyEqual(t2, s2, eps):
-                        results.append(s1, s2, t1, t2)
+                        results.append((s1, s2, t1, t2))
     return results
 
 def pairwiseScoreSingleAnnotation(S1, S2, T1, T2, deltaMass, eps):
@@ -893,16 +893,17 @@ def pairwiseScoreSingleAnnotation(S1, S2, T1, T2, deltaMass, eps):
 
     for t1 in tPairs:
         found = False
+        temp = None
         for s1 in S1:
             if fuzzyEqual(t1, s1, eps):
                 found = True
+                temp = s1
                 break
         if found:
             for t2 in tPairs[t1]:
                 for s2 in S2:
                     if fuzzyEqual(t2, s2, eps):
-                        count += 1
-                        results.append(t1, t2)
+                        results.append((temp, s2, t1, t2))
                         break
 
     return results
@@ -1087,8 +1088,8 @@ for nodeKey in SG.nodes:
                     edgeAB.pairwiseScore2 = len(t1t2)
                     
                     if len(s1s2t1t2) != len(t1t2):
-                        print("Oops! \nQuads: " + s1s2t1t2)
-                        print("Pairs: " + t1t2)
+                        print("Oops! \nQuads: " + str(s1s2t1t2))
+                        print("Pairs: " + str(t1t2))
                     
                         
                     #Version 3:  Score only by theoretical spectra
