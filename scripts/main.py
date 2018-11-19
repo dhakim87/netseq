@@ -462,6 +462,47 @@ def plotCandidateGraph(SG):
     nx.draw_networkx(G)
     plt.show()
 
+def spanningTree(edgeList, weightFunc, maximal=False):
+    #Kruskal's Algorithm:
+    #Sort edges by their weight.  (If maximal is true, sort desc rather than asc)
+    #Loop through edges, add edge to result if endpoints of edge are in different sets.
+    def findSetRepresentative(lookupTable, candidate):
+        id = candidate.ID
+        while id in lookupTable and id != lookupTable[id]:
+            id = lookupTable[id]
+        return id
+
+    def areInSameSet(lookupTable, candidateA, candidateB):
+        return findSetRepresentative(lookupTable, candidateA) == findSetRepresentative(lookupTable, candidateB)
+
+    def mergeSets(lookupTable, candidateA, candidateB):
+        aRepr = findSetRepresentative(lookupTable, candidateA)
+        bRepr = findSetRepresentative(lookupTable, candidateB)
+        newRepr = min(aRepr, bRepr)
+        id = candidateA.ID
+        while id in lookupTable and id != lookupTable[id]:
+            temp = id
+            id = lookupTable[id]
+            lookupTable[temp] = newRepr
+        id = candidateB.ID
+        while id in lookupTable and id != lookupTable[id]:
+            temp = id
+            id = lookupTable[id]
+            lookupTable[temp] = newRepr
+        lookupTable[aRepr] = newRepr
+        lookupTable[bRepr] = newRepr
+
+    sortedEdgeList = sorted(edgeList, key=weightFunc, reverse=maximal)
+    lookupTable = {}
+    MST = []
+
+    for potentialEdge in sortedEdgeList:
+        if not areInSameSet(lookupTable, potentialEdge.A, potentialEdge.B):
+            MST.append(potentialEdge)
+            mergeSets(lookupTable, potentialEdge.A, potentialEdge.B)
+
+    return MST
+
 #MAIN PROGRAM START
 print("\n\n---START---\n\n");
 
@@ -1041,6 +1082,7 @@ for nodeKey in SG.nodes:
         totalPairwiseScore = 0
         totalPairwiseScore2 = 0
         totalPairwiseScore3 = 0
+        candidateEdgeList = []
         
         for nodeID in group:
             node = SG.nodes[nodeID]
@@ -1099,10 +1141,21 @@ for nodeKey in SG.nodes:
                 totalPairwiseScore += edgeAB.pairwiseScore
                 totalPairwiseScore2 += edgeAB.pairwiseScore2
                 totalPairwiseScore3 += edgeAB.pairwiseScore3
+                candidateEdgeList.append(edgeAB)
 
         candidateNetwork.pairwiseScore = totalPairwiseScore
         candidateNetwork.pairwiseScore2 = totalPairwiseScore2
         candidateNetwork.pairwiseScore3 = totalPairwiseScore3
+        candidateNetwork.candidateEdges = candidateEdgeList
+
+        #Using the set of edges in the candidate network, construct an Maximum Spanning Tree using pairwiseScore as the edge weight.
+        maximalSpanningTree = spanningTree(candidateEdgeList, lambda x:x.pairwiseScore, maximal=True)
+
+        mstScore = 0
+        for edge in maximalSpanningTree:
+            mstScore += edge.pairwiseScore
+        candidateNetwork.mstScore = mstScore
+        candidateNetwork.mstEdges = maximalSpanningTree
 
     #Double check results before sending to bahar :D
     totalEdgesSG = 0
@@ -1129,6 +1182,7 @@ for answer in answers:
     pairwiseScoreY = []
     pairwiseScore2Y = []
     pairwiseScore3Y = []
+    mstScoreY = []
     correctRow = None
     
     representativeNodeID = answer[0][0].ID
@@ -1145,6 +1199,7 @@ for answer in answers:
             f.write("\t")
         f.write("score\t")
         f.write("pairwiseScore\t")
+        f.write("mstScore\t")
         f.write("totalEditDist\t")
         f.write("correct\n")
 
@@ -1178,10 +1233,12 @@ for answer in answers:
             f.write("\t")
             f.write(str(row.pairwiseScore))
             f.write("\t")
+            f.write(str(row.mstScore))
+            f.write("\t")
             f.write(str(row.totalEditDistance))
             f.write("\t")
             if correctCount == len(answer[0]):
-                print("FILE: " + filename + " CORRECT ANSWER: ROW: " + str(rowNumber) + " SCORE: " + str(row.score) + " EDIT DIST: " + str(row.totalEditDistance))
+                print("FILE: " + filename + " CORRECT ANSWER: ROW: " + str(rowNumber) + " SCORE: " + str(row.score) + " EDIT DIST: " + str(row.totalEditDistance) + " PAIR SCORE: " + str(row.pairwiseScore) + " MST SCORE: " + str(row.mstScore))
                 correctRow = row
                 f.write("*")
                 foundAnswer = True
@@ -1194,6 +1251,7 @@ for answer in answers:
             pairwiseScoreY.append(row.pairwiseScore)
             pairwiseScore2Y.append(row.pairwiseScore2)
             pairwiseScore3Y.append(row.pairwiseScore3)
+            mstScoreY.append(row.mstScore)
 
     if not foundAnswer:
         print("ANSWER NOT FOUND!!!")
@@ -1227,3 +1285,24 @@ for answer in answers:
         plt.axhline(y=correctRow.pairwiseScore3, c='k', linestyle='dashed')
         plt.axhline(y=0, c='k')
     plt.show()
+
+    plt.scatter(scoreX, mstScoreY)
+    plt.title(filename)
+    plt.xlabel("Score")
+    plt.ylabel("MST Score")
+    if correctRow is not None:
+        plt.axvline(x=correctRow.score, c='k', linestyle='dashed')
+        plt.axhline(y=correctRow.mstScore, c='k', linestyle='dashed')
+        plt.axhline(y=0, c='k')
+    plt.show()
+
+
+
+    for e in correctRow.candidateEdges:
+        print(str(e.A.ID) + " -> " + str(e.B.ID) + ": " + str(e.pairwiseScore))
+
+    print("------------------------")
+    for e in correctRow.mstEdges:
+        print(str(e.A.ID) + " -> " + str(e.B.ID) + ": " + str(e.pairwiseScore))
+
+

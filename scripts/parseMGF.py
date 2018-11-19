@@ -37,7 +37,7 @@ def findMasses(massIntensityDict):
     x.sort()
     return x
 
-def genTheoreticalMasses(aminoMassList):
+def genTheoreticalMassesRoundoffIssues(aminoMassList):
     x = set([])
     #TODO FIXME HACK:  If this is slow, use prefix sum instead.
     for startIndex in range(len(aminoMassList)):
@@ -45,6 +45,18 @@ def genTheoreticalMasses(aminoMassList):
         for numElements in range(len(aminoMassList)):
             sum += aminoMassList[(startIndex + numElements)%(len(aminoMassList))]
             x.add(sum)
+    x = list(x)
+    x.sort()
+    return x
+
+def genTheoreticalMasses(aminoMassList):
+    x = set([])
+    #Fixed point in 1/10mDa by multiplying and dividing by 10000.  Can pass in a number instead.
+    for startIndex in range(len(aminoMassList)):
+        sum = 10000
+        for numElements in range(len(aminoMassList)):
+            sum += int((aminoMassList[(startIndex + numElements)%(len(aminoMassList))]) * 10000)
+            x.add(sum / 10000.0)
     x = list(x)
     x.sort()
     return x
