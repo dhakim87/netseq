@@ -1,10 +1,15 @@
 from collections import defaultdict
+from parsers import *
+from eq import fuzzyEqual
 #import networkx as nx
 import matplotlib.pyplot as plt
 import levenshtein as Lev
 import spectralPlotting
 import sys
 import os
+import globals
+import scoring
+import MST
 from AminoLanguage import *
 
 SHOW_GRAPHS = False  #Whether or not to show graphs with networkx and matplotlib (VERY SLOW)
@@ -14,110 +19,6 @@ DEFAULT_U_CONSISTENCY_THRESH = 0 #Override: U=xxx (>0 VERY SLOW)
 DEFAULT_CANDIDATE_SCORE_THRESH = 0 #Override: MIN_SCORE=xxx
 
 OUTPUT = "short" #Supports "mass", "amino", "filename", or "short"
-
-"""Parse a tab separated value file into an array of rows.  Any rows in the file that do not have enough entries to fill all columns will be skipped and warnings will be printed to console.  You may optionally skip the first line of the file (to remove header info) by passing True as the third argument."""
-def parseTSV(file, columns, skipFirstLine):
-    firstLine = skipFirstLine
-    
-    arr = []
-    arrIndex = 0
-    with open(file, 'r') as f:
-        for line in f:
-            row = []
-            if (firstLine):
-                firstLine = False
-                continue
-            
-            ss = line.split("\t")
-            
-            if (len(ss) < len(columns)):
-                print("WARNING: COULD NOT PARSE ROW: " + (str)(len(ss)))
-                continue
-            for i in range(0, len(columns)):
-                row.append(ss[i])
-
-            arr.append(row)
-            arrIndex = arrIndex + 1
-    return arr;
-
-"""Converts an array of objects and an array of column headers into a dictionary"""
-def rowToDict(row, columns):
-    x = {}
-    for index, val in enumerate(row):
-        x[columns[index]] = row[index];
-    return x;
-
-"""Converts an array of rows and an array of column headers into an array of dictionaries"""
-def arrToDicts(arr, columns):
-    allRows = []
-    for row in arr:
-        allRows.append(rowToDict(row, columns))
-    return allRows;
-
-"""Reads a spectral graph nodes file (no file ending atm)"""
-def readSpectralGraphNodes(file):
-    columns = ["clusterIndex", "numSpectra", "parentMass", "precursorCharge", "precursorMass", "sumPrecursorIntensity", "G1", "G2", "G3", "G4", "G5", "G6", "allFiles", "allGroups", "defaultGroups", "rtMean", "rtStdErr", "proteoSAFeClusterLink", "uniqueFileSourcesCount", "evenOdd", "libraryID", "numberOrganismIDs", "allOrganisms", "componentindex"]
-    allEntries = parseTSV(file, columns, True)
-    allEntriesAsDictionaries = arrToDicts(allEntries, columns)
-    return allEntriesAsDictionaries
-
-"""Reads a pairs info file (.pairsinfo)"""
-def readPairsInfo(file):
-    columns = ["A", "B", "deltaMass", "ignore1", "cosine", "ignore3", "ignore4"]
-    allEntries = parseTSV(file, columns, False)
-    allEntriesAsDictionaries = arrToDicts(allEntries, columns)
-    return allEntriesAsDictionaries
-
-"""Reads a candidate file (.concise.tsv)"""
-def readCandidates(file):
-    columns = ["graphFile", "mgfFile", "score", "pValue"]
-    allEntries = parseTSV(file, columns, False)
-    allEntriesAsDictionaries = arrToDicts(allEntries, columns)
-    return allEntriesAsDictionaries
-
-"""Reads an amino acid language file (aa_mass_list.txt)"""
-def readAminoLanguage(file):
-    columns = ["lc", "uc", "composition", "mass"]
-    allEntries = parseTSV(file, columns, False)
-    allEntriesAsDictionaries = arrToDicts(allEntries, columns)
-    
-    sortedAminos = []
-    for row in allEntriesAsDictionaries:
-        sortedAminos.append(Amino(row))
-    
-    sortedAminos.sort(key = lambda x: x.mass)
-    L = AminoLanguage(sortedAminos)
-    return L
-
-"""Reads a graph file containing a cyclopeptide.  Ensures the file is actually circular, then returns in the form of a mass list.  (.graph)"""
-def parseGraphFile(file):
-    hasReadComponents = False
-    componentsToRead = -1
-    hasReadBonds = False
-    bondsToRead = -1
-    massList = []
-    temp = 0
-    with open(file, 'r') as f:
-        for line in f:
-            ss = line.split()
-            if not hasReadComponents:
-                componentsToRead = int(ss[4])
-                hasReadComponents = True
-                continue
-            if componentsToRead > 0:
-                massList.append(float(ss[2]))
-                componentsToRead = componentsToRead - 1
-                continue
-            if not hasReadBonds:
-                bondsToRead = int(ss[4])
-                hasReadBonds = True
-                continue
-            if bondsToRead > 0:
-                assert int(ss[0]) == temp, "Unsupported: Peptide is not circular"
-                temp += 1
-                bondsToRead -= 1
-                assert int(ss[2]) == temp or (int(ss[2]) == 0 and bondsToRead == 0), "Unsupported: Peptide is not circular"
-    return massList
 
 """A node in the spectral network graph.  These nodes contain an adjacency list and a set of candidate cyclopeptides"""
 class SpectralGraphNode:
@@ -311,47 +212,6 @@ def findRelations2(SGNodeA, SGNodeB, maxMutationsPerEdge):
                 candA.neighbors.append(edge)
                 candB.neighbors.append(edge)
 
-def spanningTree(edgeList, weightFunc, maximal=False):
-    #Kruskal's Algorithm:
-    #Sort edges by their weight.  (If maximal is true, sort desc rather than asc)
-    #Loop through edges, add edge to result if endpoints of edge are in different sets.
-    def findSetRepresentative(lookupTable, candidate):
-        id = candidate.ID
-        while id in lookupTable and id != lookupTable[id]:
-            id = lookupTable[id]
-        return id
-
-    def areInSameSet(lookupTable, candidateA, candidateB):
-        return findSetRepresentative(lookupTable, candidateA) == findSetRepresentative(lookupTable, candidateB)
-
-    def mergeSets(lookupTable, candidateA, candidateB):
-        aRepr = findSetRepresentative(lookupTable, candidateA)
-        bRepr = findSetRepresentative(lookupTable, candidateB)
-        newRepr = min(aRepr, bRepr)
-        id = candidateA.ID
-        while id in lookupTable and id != lookupTable[id]:
-            temp = id
-            id = lookupTable[id]
-            lookupTable[temp] = newRepr
-        id = candidateB.ID
-        while id in lookupTable and id != lookupTable[id]:
-            temp = id
-            id = lookupTable[id]
-            lookupTable[temp] = newRepr
-        lookupTable[aRepr] = newRepr
-        lookupTable[bRepr] = newRepr
-
-    sortedEdgeList = sorted(edgeList, key=weightFunc, reverse=maximal)
-    lookupTable = {}
-    MST = []
-
-    for potentialEdge in sortedEdgeList:
-        if not areInSameSet(lookupTable, potentialEdge.A, potentialEdge.B):
-            MST.append(potentialEdge)
-            mergeSets(lookupTable, potentialEdge.A, potentialEdge.B)
-
-    return MST
-
 #MAIN PROGRAM START
 print("\n\n---START---\n\n");
 
@@ -362,8 +222,7 @@ for arg in sys.argv[1:]:
     if len(ss) == 2:
         args[ss[0]] = ss[1]
 
-
-L = readAminoLanguage("../data/aa_mass_list.txt");
+L = globals.DEFAULT_ALPHABET
 
 #Override Thresholds based on user input
 uConsistency = DEFAULT_U_CONSISTENCY_THRESH
@@ -724,80 +583,6 @@ class CandidateNetwork:
         newDictionary[visitedNode.ID] = newCandidate
         return CandidateNetwork(self.score + newCandidate.score, newDictionary, self.remainingBrokenEdges - brokenEdges)
 
-def fuzzyEqual(a, b, eps):
-    return abs(b-a) < eps
-
-def pairwiseScoreMultiAnnotation(S1, S2, T1, T2, deltaMass, eps):
-    if deltaMass <= 0:
-        raise Exception("Delta Mass Must Be > 0")
-
-    #Define fuzzyEqual(a,b) as abs(b-a) < eps
-    #Return count of all tuples (s1, s2, t1, t2) such that:
-    #   s1 is an element of S1,
-    #   s2 is an element of S2,
-    #   t1 is an element of T1,
-    #   t2 is an element of T2,
-    #   fuzzyEqual(s2 - s1, deltaMass),
-    #   fuzzyEqual(t2 - t1, deltaMass),
-    #   fuzzyEqual(t1, s1) and
-    #   fuzzyEqual(t2, s2)
-    results = []
-    sPairs = defaultdict(list)
-    tPairs = defaultdict(list)
-    for s1 in S1:
-        for s2 in S2:
-            if s2 <= s1:
-                continue
-            if fuzzyEqual(s2 - s1, deltaMass, eps):
-                sPairs[s1].append(s2)
-    for t1 in T1:
-        for t2 in T2:
-            if t2 <= t1:
-                continue
-            if fuzzyEqual(t2 - t1, deltaMass, eps):
-                tPairs[t1].append(t2)
-    for s1 in sPairs:
-        for s2 in sPairs[s1]:
-            for t1 in tPairs:
-                for t2 in tPairs[t1]:
-                    if fuzzyEqual(t1, s1, eps) and fuzzyEqual(t2, s2, eps):
-                        results.append((s1, s2, t1, t2))
-    return results
-
-def pairwiseScoreSingleAnnotation(S1, S2, T1, T2, deltaMass, eps):
-    #Define fuzzyEqual(a,b) as abs(b-a) < eps
-    #Return count of all tuples (t1, t2) such that:
-    #   t1 is an element of T1,
-    #   t2 is an element of T2,
-    #   fuzzyEqual(t2-t1, deltaMass)
-    #   There exists s1 is an element of S1 such that fuzzyEqual(s1,t1)
-    #   There exists s2 is an element of S2 such that fuzzyEqual(s2,t2)
-    results = []
-    tPairs = defaultdict(list)
-    for t1 in T1:
-        for t2 in T2:
-            if t2 <= t1:
-                continue
-            if fuzzyEqual(t2 - t1, deltaMass, eps):
-                tPairs[t1].append(t2)
-
-    for t1 in tPairs:
-        found = False
-        temp = None
-        for s1 in S1:
-            if fuzzyEqual(t1, s1, eps):
-                found = True
-                temp = s1
-                break
-        if found:
-            for t2 in tPairs[t1]:
-                for s2 in S2:
-                    if fuzzyEqual(t2, s2, eps):
-                        results.append((temp, s2, t1, t2))
-                        break
-
-    return results
-
 #By filtering candidates by their surrounding edges until we stopped removing candidates
 #we are now guaranteed that all remaining candidates exist in connected components which span the containing connected components of their parent nodes in the graph.
 #Now the awful exponential part: And remember that everything has to be done separately per connected component of the SG node graph.
@@ -959,7 +744,7 @@ for nodeKey in SG.nodes:
                     massDeltaValue = neighborNode.mass - node.mass
 
                     #Version 1:  Score by overlap in deltas between experimental and theoretical spectra
-                    s1s2t1t2 = pairwiseScoreMultiAnnotation(
+                    s1s2t1t2 = scoring.pairwiseScoreMultiAnnotation(
                         nodeExperimentalSpectra,
                         neighborExperimentalSpectra,
                         candidateA.theoreticalSpectra,
@@ -969,7 +754,7 @@ for nodeKey in SG.nodes:
                     edgeAB.pairwiseScore = len(s1s2t1t2)
 
                     #Version 2:  Score by intersection of
-                    t1t2 = pairwiseScoreSingleAnnotation(
+                    t1t2 = scoring.pairwiseScoreSingleAnnotation(
                         nodeExperimentalSpectra,
                         neighborExperimentalSpectra,
                         candidateA.theoreticalSpectra,
@@ -998,7 +783,7 @@ for nodeKey in SG.nodes:
         candidateNetwork.candidateEdges = candidateEdgeList
 
         #Using the set of edges in the candidate network, construct an Maximum Spanning Tree using pairwiseScore as the edge weight.
-        maximalSpanningTree = spanningTree(candidateEdgeList, lambda x:x.pairwiseScore, maximal=True)
+        maximalSpanningTree = MST.spanningTree(candidateEdgeList, lambda x:x.pairwiseScore, maximal=True)
 
         mstScore = 0
         for edge in maximalSpanningTree:

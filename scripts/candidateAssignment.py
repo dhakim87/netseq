@@ -1,4 +1,6 @@
-import queue
+import Queue
+from eq import fuzzyEqual
+from globals import DEFAULT_ALPHABET
 
 #General Idea:  We will go with option 1 as it makes more sense as a module within the system.
 #Option 1.  Create module that assigns candidates to all nodes in the network:
@@ -29,14 +31,16 @@ import queue
 #        //How does this handle multiple candidates in the initial input?
 #    }
 
+"""Calculate the mass of a list of Aminos by summing up their individual masses"""
 def calcMass(candidate):
     totalMass = 0
     for amino in candidate:
         totalMass += amino.mass
     return totalMass
 
-
-def generateCandidates(neighbor, maximumLDist, alphabet = DEFAULT_ALPHABET):
+"""Generate candidates, where each candidate is a list of aminos, from a starting list of aminos.
+   Candidates are generated as all lists within a cyclic edit distance of maximumLDist"""
+def generateCandidatesSingle(neighbor, maximumLDist, alphabet = DEFAULT_ALPHABET):
     #Ugh!
     #Can formulate as a graph search in an absurdly high dimensional space.  Ugh!
     #Use breadth first search.  Store everything in spin invariant canonical.
@@ -44,13 +48,14 @@ def generateCandidates(neighbor, maximumLDist, alphabet = DEFAULT_ALPHABET):
     nodeToVal = {}
     nodeToVisited = {}
     
-    val = AminoLanguage.toSpinInvariant(AminoLanguage.toCanonicalAminoArr(neighbor))
+    val = alphabet.toSpinInvariant(neighbor)
     strVal = str(val)
     nodeToDist[strVal] = 0
     nodeToVal[strVal] = val
     
+    """helper function to add neighbors to the visit queue and update necessary mappings"""
     def evaluateNeighbor(newVal, newDist, nodeToDist, nodeToVal, toVisit):
-        newVal = AminoLanguage.toSpinInvariant(newVal)
+        newVal = alphabet.toSpinInvariant(newVal)
         newStr = str(newVal)
         if newStr in nodeToDist:
             nodeToDist[newStr] = min(newDist, nodeToDist[newStr])
@@ -59,14 +64,16 @@ def generateCandidates(neighbor, maximumLDist, alphabet = DEFAULT_ALPHABET):
         nodeToVal[newStr] = newVal
         toVisit.put(newStr)
     
-    toVisit = queue.Queue()
+    toVisit = Queue.Queue()
     toVisit.put(strVal)
-    while len(toVisit) > 0:
+    #TODO FIXME HACK:  Rather than organizing this as a breadth first search across individual transitions, if we can generate a list of multi-step paths of ADD/SWP/DEL operations
+    #that add to the necessary change in mass, we can rewrite to loop over the paths rather than doing an exhaustive search of paths, many of which will end in invalid masses.
+    while not toVisit.empty():
         curStr = toVisit.get()
         if curStr in nodeToVisited:
             continue
         nodeToVisited[curStr] = True
-
+        
         curVal = nodeToVal[curStr]
         curDist = nodeToDist[curStr]
         if curDist == maximumLDist:
@@ -79,26 +86,28 @@ def generateCandidates(neighbor, maximumLDist, alphabet = DEFAULT_ALPHABET):
             del newVal[position]
             evaluateNeighbor(newVal, curDist + 1, nodeToDist, nodeToVal, toVisit)
         #SWP
-        for position in range(0, len(curVal)):
-            for swapTo in alphabet.sortedAminos:
-                newVal = list(curVal)
-                newVal[position] = swapTo
-                evaluateNeighbor(newVal, curDist + 1, nodeToDist, nodeToVal, toVisit)
+#        for position in range(0, len(curVal)):
+#            for swapTo in alphabet.sortedAminos:
+#                newVal = list(curVal)
+#                newVal[position] = swapTo
+#                evaluateNeighbor(newVal, curDist + 1, nodeToDist, nodeToVal, toVisit)
         #ADD
-        for position in range(0, len(curVal)):
-            #Note that inserting at position 0 and adding to end of list are the same because these are cyclopeptides.
-            for toAdd in alphabet.sortedAminos:
-                newVal = list(curVal)
-                newVal.insert(position, toAdd)
-                evaluateNeighbor(newVal, curDist + 1, nodeToDist, nodeToVal, toVisit)
+#        for position in range(0, max(len(curVal), 1)):
+#            #Note that inserting at position 0 and adding to end of list are the same because these are cyclopeptides.  Note also that both length 0 and length 1 lists have a single insertion point.
+#            for toAdd in alphabet.sortedAminos:
+#                newVal = list(curVal)
+#                newVal.insert(position, toAdd)
+#                evaluateNeighbor(newVal, curDist + 1, nodeToDist, nodeToVal, toVisit)
 
     resultsList = []
     for strVal in nodeToVal:
         resultsList.append(nodeToVal[strVal])
     return resultsList
 
+"""Generate candidates, where each candidate is a list of aminos, from a starting set of lists of aminos with the same total approximate mass.
+   Candidates are generated as all lists within a cyclic edit distance of maximumLDist, then are filtered down to be within epsilon of the target mass.  """
 
-def generateCandidates(targetMass, neighborMass, neighborCandidates, maximumLDist, massEpsilon):
+def generateCandidates(targetMass, neighborMass, neighborCandidates, maximumLDist, massEpsilon, alphabet = DEFAULT_ALPHABET):
     #Ugh, there are a lot of ways we could generate candidates depending on the assumptions we're willing to make.  The problem seems tractable with a fixed alphabet, working at the level of masses directly we could generate a heck of a lot of potential candidates and it isn't clear to me which of those make biological sense.  So we'll start with a fixed alphabet for now and keep this function separated so we can try different implementations.
 
     #Option 1:  Absolute worst possible correct algorithm:  Enumerate all strings between length min neighborCandidate length - maximumLDist and length max neighborCandidate length + maximumLDist.  Check all strings for Ldist to all neighbor candidates and proximity to target mass.
@@ -116,26 +125,28 @@ def generateCandidates(targetMass, neighborMass, neighborCandidates, maximumLDis
     #For each neighbor, generate all candidates, union them together, filter out anything with the wrong mass.
     allCandidates = []
     for neighbor in neighborCandidates:
-        candidatesFromNeighbor = generateCandidates(neighbor, maximumLDist)
+        candidatesFromNeighbor = generateCandidatesSingle(neighbor, maximumLDist)
         for candidate in candidatesFromNeighbor:
             allCandidates.append(candidate)
 
-    allCandidates = AminoLanguage.removeStrDups(allCandidates)
+    allCandidates = alphabet.removeStrDups(allCandidates)
 
     filteredCandidates = []
     for candidate in allCandidates:
         if fuzzyEqual(calcMass(candidate), targetMass, massEpsilon):
-            filteredCandidates.add(candidate)
+            filteredCandidates.append(candidate)
 
     return filteredCandidates
 
 def combineCandidateSets(listOfCandidateSets):
     #Potentially intersect sets from all neighbors if we believe this will give us consistency, potentially union all the sets if we just want as many candidates as we can get, potentially some weird partial operation where a candidate makes the cut if it is suggested by at least 50% of neighbors...
     #We'll start simple and do a union.
-    x = set([])
+    x = []
     for candidateSet in listOfCandidateSets:
         for candidate in candidateSet:
-            x.add(candidate)
+            x.append(candidate)
+    x = alphabet.removeStrDups(x)
+
     return x
 
 def generateAllCandidatesByNode(SG, unannotated, annotated, lDist = 2, epsilon = .02):
@@ -152,9 +163,9 @@ def generateAllCandidatesByNode(SG, unannotated, annotated, lDist = 2, epsilon =
             listOfCandidateSets.append(generateCandidates(SG.nodes[key].mass, annotated[neighborID], lDist, epsilon))
         #Potentially intersect sets from all neighbors if we believe this will give us consistency, potentially union all the sets if we just want as many candidates as we can get, potentially some weird partial operation where a candidate makes the cut if it is suggested by at least 50% of neighbors...
         finalCandidateSet = combineCandidateSets(listOfCandidateSets)
-        
         allCandidatesByNode[key] = []
 
+    return allCandidatesByNode
 
 def getUnannotated(all, annotated):
     unannotated = []
@@ -165,9 +176,14 @@ def getUnannotated(all, annotated):
 
 def assignCandidates(SG, initialCandidates):
     annotatedNodes = initialCandidates
+    
     while len(annotatedNodes) < len(SG): #more nodes to annotate
         unannotatedList = getUnannotated(SG, annotatedNodes)
 
         #Generate all possible candidates
         allCandidatesByNode = generateAllCandidates(SG, unannotatedList, annotatedNodes)
+
+        #Evaluate all candidates by their score and maximum possible pairwise score
+        candidateScores = {}
+
 

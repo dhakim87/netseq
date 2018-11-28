@@ -12,6 +12,9 @@ class Amino:
     def __str__(self):
         return self.name;
 
+    def __repr__(self):
+        return self.name;
+
 """A grab bag of amino acids.  ID'd to allow fast hash/eq lookups.  You must manually intern these objects to use their faster behavior."""
 class AminoComposition:
     idGen = 0
@@ -29,15 +32,12 @@ class AminoComposition:
 """The language of amino acids used in construction of cyclopeptides"""
 class AminoLanguage:
     MASS_EPSILON = 0.02 #Da -- This is the maximum difference between a mass and the amino acid we will label that mass as.  This should be defined based on the accuracy/precision of the mass spectrometer in use.
-    fastLookup = {} #Caches and returns results of the toCanonicalName function
     compositionSet = {} #Allows interning of AminoCompositions for faster lookup and equality
     
-    nameToMass = {}
-
     def __init__(self, sortedAminos):
         self.sortedAminos = sortedAminos
-        for amino in sortedAminos:
-            AminoLanguage.nameToMass[amino.name] = amino.mass
+        self.fastLookup = {} #Caches and returns results of the toCanonicalName function
+        self.fastLookupAmino = {}
 
     """The canonical name of a mass is a unique string defining the set of all amino acids within MASS_EPSILON of that mass"""
     def toCanonicalName(self, mass):
@@ -59,7 +59,7 @@ class AminoLanguage:
             s = "?!?" #If you want to keep running with this unknown mass and not corrupt your results, add it to the amino list with a unique 3 letter code.
             raise Exception("Unexpected Amino Weight")
         
-        AminoLanguage.fastLookup[mass] = s
+        self.fastLookup[mass] = s
         return s
         
     def toCanonicalAmino(self, mass):
@@ -78,9 +78,9 @@ class AminoLanguage:
                 print("Warning, mass mapped to multiple amino acids, picking " + val.name)
         
         if val == None:
-            raise Exception("Unknown Amino Weight")
+            raise Exception("Unknown Amino Weight: " + str(mass))
         
-        AminoLanguage.fastLookupAmino[mass] = val
+        self.fastLookupAmino[mass] = val
         return val
 
     """The canonical name of an array of masses is an array of strings that each uniquely represent amino acids within MASS_EPSILON of each mass"""
@@ -104,6 +104,9 @@ class AminoLanguage:
 
     """To quickly identify spins of the same cyclopeptide, all spin sets can be converted to a spinInvariantCanonicalNameArr.  This is the rotation of the cyclopeptide that results in the least value string, sorted lexicographically.  For maintaining this interface, all that matters is that all rotations of a canonical name arr are assigned the same string value, but cyclopeptides that are not considered equal must generate different spin invariant canonical names"""
     def toSpinInvariant(self, canonicalNameArr):
+        if len(canonicalNameArr) <= 1:
+            return list(canonicalNameArr)
+        
         allSpins = self.generateAllCanonicalNameSpins(canonicalNameArr)
         allSpins.sort(key=lambda x: str(x))
         return allSpins[0]

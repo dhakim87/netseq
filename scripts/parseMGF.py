@@ -30,22 +30,9 @@ def readMGF(filename):
     return results
 
 def findMasses(massIntensityDict):
-    #TODO FIXME HACK:  It doesn't look like these files were filtered beforehand, do I need to run a peak detector??
     x = []
     for mass in massIntensityDict:
         x.append(mass)
-    x.sort()
-    return x
-
-def genTheoreticalMassesRoundoffIssues(aminoMassList):
-    x = set([])
-    #TODO FIXME HACK:  If this is slow, use prefix sum instead.
-    for startIndex in range(len(aminoMassList)):
-        sum = 1 #1 dalton offset for the proton in mass spec
-        for numElements in range(len(aminoMassList)):
-            sum += aminoMassList[(startIndex + numElements)%(len(aminoMassList))]
-            x.add(sum)
-    x = list(x)
     x.sort()
     return x
 
