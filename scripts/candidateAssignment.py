@@ -50,7 +50,7 @@ def generateCandidates(neighbor, maximumLDist, alphabet = DEFAULT_ALPHABET):
     nodeToVal[strVal] = val
     
     def evaluateNeighbor(newVal, newDist, nodeToDist, nodeToVal, toVisit):
-        newVal = AminoLanguage.toSpinInvariantCanonicalNameArr(newVal)
+        newVal = AminoLanguage.toSpinInvariant(newVal)
         newStr = str(newVal)
         if newStr in nodeToDist:
             nodeToDist[newStr] = min(newDist, nodeToDist[newStr])
@@ -58,7 +58,6 @@ def generateCandidates(neighbor, maximumLDist, alphabet = DEFAULT_ALPHABET):
             nodeToDist[newStr] = newDist
         nodeToVal[newStr] = newVal
         toVisit.put(newStr)
-
     
     toVisit = queue.Queue()
     toVisit.put(strVal)
@@ -108,12 +107,12 @@ def generateCandidates(targetMass, neighborMass, neighborCandidates, maximumLDis
     #Option 2:  Second worst possible correct algorithm:  For each neighbor candidate, generate all strings within L dist, filter out all strings with the wrong target mass.
     #The generation step is tough, and will potentially generate the same string multiple times.  This should still be significantly faster than checking a string for its L dist to each neighbor candidate.
 
-    #Option 3:  Potentially better algorithm:  Enumerate all possible changes (ADD/SWAP/DEL) with L dist 1 and associate them with their change in mass.  Find all sets of changes with L dist <= maximum L dist and change in mass equal to targetMass - neighborMass.  Permute all possible change sets to first apply all ADDs, then all SWAPs, then all DELs.  For each neighborCandidate, apply all possible change sets (with each individual step potentially occurring at each position of the candidate).
-    #Ugh, this is possibly better, but quite hard to implement correctly and loses a lot of its potential due to the multiple ways to get to each candiate.
+    #Option 3:  Potentially better algorithm:  Enumerate all possible changes (ADD/SWAP/DEL) with L dist 1 and associate them with their change in mass.  Find all sets of changes with L dist <= maximum L dist and change in mass equal to targetMass - neighborMass.  Permute all possible change sets to a canonical form to first apply all ADDs, then all SWAPs, then all DELs.  For each neighborCandidate, apply all possible change sets (with each individual step potentially occurring at each position of the candidate).
+    #Ugh, this is possibly better, but quite hard to implement correctly and loses a lot of its potential due to the multiple ways to get to each candidate.
 
     #Option 4:  Potential compromise:  Project all candidates into a "composition space" where only their compositions, not their order, is maintained.  This space is an ||A|| dimensional space where each axis is the number of amino acids of each label in the alphabet.  L dist in this space is a taxicab distance, so we can very quickly generate the set of possible compositions that are within a maximum L dist and narrow in on compositions that allow for the target mass.  We can then check all permutations of these compositions for L dist to our existing candidates.  If our candidate set contains all permutations of every composition, then this is the correct answer, as there is no reason to check for L dist.
 
-    #I think we'll go with option 2 for now.
+    #I think we'll go with option 2 for now and attempt option 3 later.
     #For each neighbor, generate all candidates, union them together, filter out anything with the wrong mass.
     allCandidates = []
     for neighbor in neighborCandidates:
