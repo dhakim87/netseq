@@ -14,6 +14,19 @@ def score(S, T, eps):
                 results.append((s,t))
     return results
 
+def scoreSingleAnnotation(S, T, eps):
+    #Define fuzzyEqual(a,b) as abs(b-a) < eps
+    #Return count of all elements s such that:
+    #s is an element of S
+    #there exists t is an element of T such that fuzzyEqual(s, t)
+    results = []
+    for s in S:
+        for t in T:
+            if fuzzyEqual(s, t, eps):
+                results.append((s,t))
+                break
+    return results
+
 def pairwiseScoreMultiAnnotation(S1, S2, T1, T2, deltaMass, eps):
     if deltaMass <= 0:
         raise Exception("Delta Mass Must Be > 0")

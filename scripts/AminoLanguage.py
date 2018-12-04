@@ -15,6 +15,14 @@ class Amino:
     def __repr__(self):
         return self.name;
 
+    def __hash__(self):
+        return hash(self.name)
+
+    def __eq__(self, other):
+        if not isinstance(self, Amino) or not isinstance(other, Amino):
+            return False
+        return self.name == other.name
+
 """A grab bag of amino acids.  ID'd to allow fast hash/eq lookups.  You must manually intern these objects to use their faster behavior."""
 class AminoComposition:
     idGen = 0
@@ -75,7 +83,7 @@ class AminoLanguage:
             if val == None:
                 val = amino
             else:
-                print("Warning, mass mapped to multiple amino acids, picking " + val.name)
+                print("Warning, mass " + str(mass) + " mapped to multiple amino acids, picking " + val.name)
         
         if val == None:
             raise Exception("Unknown Amino Weight: " + str(mass))
@@ -94,6 +102,13 @@ class AminoLanguage:
         result = []
         for m in massList:
             result.append(self.toCanonicalAmino(m))
+        return result
+
+    def toMassList(self, aminoArr):
+        result = []
+        for aa in aminoArr:
+            result.append(aa.mass)
+        return result
 
     """The set of canonical name array spins is what you get by rotating the strings in a canonical name array.  Because we are working with cyclopeptides, all of these spins are considered identical"""
     def generateAllCanonicalNameSpins(self, canonicalNameArr):
