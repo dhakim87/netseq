@@ -1,3 +1,5 @@
+__author__ = "Daniel Hakim, PevznerLab"
+
 from collections import defaultdict
 from parsers import *
 from eq import fuzzyEqual

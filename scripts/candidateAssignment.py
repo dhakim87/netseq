@@ -1,3 +1,5 @@
+__author__ = "Daniel Hakim, PevznerLab"
+
 import Queue
 from eq import fuzzyEqual
 from globals import DEFAULT_ALPHABET
